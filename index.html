@@ -426,8 +426,9 @@ footer{max-width:62rem;margin:0 auto;padding:0 clamp(1rem,4vw,2rem) 2rem;color:v
 <script>
 /* ---------- Settings you can change ---------- */
 const FACILITATOR = false;      // true only in the facilitator file
-const REQUIRE_TEAM = false;      // true makes a team name compulsory before starting
-const RESULTS_ENDPOINT = "";     // optional web address that receives each team's result (see the guide)
+const REQUIRE_TEAM = true;       // a team name must be entered before starting
+const RESULTS_FORM_URL = "";   // optional pre-filled Microsoft Forms link (see the guide)
+const RESULTS_ENDPOINT = "";   // optional web address that receives each team's result (see the guide)
 "use strict";
 
 /* ---------- Game content ---------- */
@@ -652,6 +653,7 @@ const ROOMS = [
           { label: "Point-of-care (rapid) test (days)", answer: 90, tol: 0 }
         ] },
       { type: "mcq", q: "Listen to Mr A’s question, then choose the right response.",
+        audioSrc: "output2.mp3",
         audio: "I’ve been married for 15 years. Does this mean that my wife has cheated on me during our marriage?",
         options: [
           "No. HIV can stay silent for many years, so the result does not show when or how he acquired it, and it doesn’t mean that his wife has been unfaithful",
@@ -904,9 +906,9 @@ const ROOMS = [
     ],
     stages: [
       { type: "mcq", q: "Listen to Mr A’s wife on the telephone. What do you do about disclosing his HIV diagnosis?",
+        audioSrc: "output3.mp3",
         audio: "What is he being treated for? He won’t tell me anything and I’m so worried. Please, just tell me what is wrong with my husband.",
         audioLabel: "▶ Play the telephone call",
-        audioVoice: "airy",
         options: [
           "Do not disclose his HIV diagnosis without his consent. Ask Mr A who he is happy for you to speak to, document it, and offer support to tell her",
           "Disclose his HIV diagnosis to her, because she is his wife and may be at risk",
@@ -1178,6 +1180,7 @@ const RECORDING = {
   mood: "worried",
   title: "Mr A’s story",
   task: "Press play and listen to Mr A describe his symptoms before you start the lock.",
+  audioSrc: "output1.mp3",
   text: "I’ve not been right for about six weeks. I get fevers and drenching night sweats, and I’ve lost about eight kilos in two months without trying. I have a dry cough, and I get breathless on the stairs and even walking to the toilet. I noticed a white coating in my mouth and thought it was nothing. Eight months ago I had shingles on one side of my chest, which my GP treated. I take no regular medicines, I don’t smoke, I drink a few pints at weekends and I don’t take drugs. I’m worried it might be cancer."
 };
 let SPEAK_STATE = "idle";
@@ -1227,7 +1230,7 @@ function recordingPanelHTML(r) {
       <div class="chat-head"><div class="avatar">${avatarSVG(RECORDING.mood)}</div><div><h3>${RECORDING.title}</h3><p>${RECORDING.task}</p></div></div>
       <div class="actions" style="margin-top:0">${control}</div>
       <div class="clue" style="margin-top:.8rem"><p><strong>Transcript:</strong> ${esc(RECORDING.text)}</p></div>
-      <p class="notice">A scripted summary read by a synthetic voice, not a real patient.</p>
+      <p class="notice">A scripted summary, not a real patient.</p>
     </div>`;
 }
 
@@ -1240,7 +1243,7 @@ function refreshRecording() {
 
 function playRecording() {
   if (!TTS) return;
-  TTS.speak(RECORDING.text, { language: "en" }).catch(() => {});
+  TTS.speak(RECORDING.audioSrc).catch(() => {});
 }
 
 function stopRecording() {
@@ -1263,7 +1266,7 @@ function introView() {
         <li>Hints are free but counted. The fastest team with the fewest hints wins.</li>
       </ul>
     </div>
-    <div class="teamrow"><label for="teamname"><strong>Team name</strong> (optional)</label><input id="teamname" class="teamin" type="text" maxlength="30" autocomplete="off" placeholder="For example Team Red"><p class="notice">Use a team name, not personal names. <span id="teamerr"></span></p></div>
+    <div class="teamrow"><label for="teamname"><strong>Team name</strong>${REQUIRE_TEAM ? " (required)" : " (optional)"}</label><input id="teamname" class="teamin" type="text" maxlength="30" autocomplete="off" placeholder="For example Team Red"><p class="notice">Use a team name, not personal names. <span id="teamerr" role="alert"></span></p></div>
     <div><button class="btn ribbon" type="button" data-act="begin">Start the clock</button></div>
   </section>`;
 }
@@ -1517,8 +1520,8 @@ function resultsHTML() {
     <div class="scroll"><table class="labs"><thead><tr><th>Room</th><th>Time</th><th>Wrong parts</th><th>Hints</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="notice">Wrong parts counts each part of a lock that was marked wrong when you tried it.</p>
     <textarea class="resultsbox" id="resultsbox" readonly rows="6" aria-label="Your results as text">${esc(resultsText(res))}</textarea>
-    <div class="actions"><button type="button" class="btn" data-act="copy-results">Copy results</button> <span id="copymsg" class="notice" role="status"></span></div>
-    <p class="notice" id="sentmsg">${RESULTS_ENDPOINT ? (st.sent || "Sending your team's result (team name, times, hints and mistakes) to the organiser.") : "Copy your results and paste them into the Teams chat or the form your facilitator gives you."}</p>`;
+    <div class="actions">${RESULTS_FORM_URL ? `<button type="button" class="btn ribbon" data-act="submit-form">Submit your result</button> ` : ""}<button type="button" class="btn" data-act="copy-results">Copy results</button> <span id="copymsg" class="notice" role="status"></span></div>
+    <p class="notice" id="sentmsg">${RESULTS_ENDPOINT ? (st.sent || "Sending your team's result (team name, times, hints and mistakes) to the organiser.") : (RESULTS_FORM_URL ? "Press Submit your result. It opens a form with your results already filled in. Check it, then press Submit on the form." : "Copy your results and paste them into the Teams chat or the form your facilitator gives you.")}</p>`;
 }
 function copyResults() {
   const box = document.getElementById("resultsbox");
@@ -1527,6 +1530,16 @@ function copyResults() {
   const done = ok => { if (msg) msg.textContent = ok ? "Copied." : "Select the text and copy it."; };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(box.value).then(() => done(true), () => { box.select(); done(false); });
   else { box.select(); try { done(document.execCommand("copy")); } catch (e) { done(false); } }
+}
+function submitForm() {
+  if (!RESULTS_FORM_URL) return;
+  const res = buildResults();
+  const val = {
+    team: res.team, time: fmt(res.total_seconds), seconds: String(res.total_seconds), hints: String(res.hints),
+    wrong: String(res.wrong_parts), attempts: String(res.lock_attempts), details: resultsText(res)
+  };
+  const url = RESULTS_FORM_URL.replace(/\{\{(\w+)\}\}/g, (m, k) => encodeURIComponent(val[k] !== undefined ? val[k] : ""));
+  window.open(url, "_blank", "noopener");
 }
 function sendResults() {
   if (!RESULTS_ENDPOINT) return;
@@ -1639,7 +1652,9 @@ document.addEventListener("click", e => {
     case "begin": {
       const tn = document.getElementById("teamname");
       st.team = tn ? tn.value.trim().slice(0, 30) : "";
-      if (REQUIRE_TEAM && !st.team) { const te = document.getElementById("teamerr"); if (te) te.textContent = "Please enter a team name first."; break; }
+      const te = document.getElementById("teamerr");
+      if (REQUIRE_TEAM && !st.team) { if (te) te.textContent = "Please enter a team name first."; if (tn) tn.focus(); break; }
+      if (st.team.indexOf("@") >= 0) { if (te) te.textContent = "Please use a team name, not an email address."; if (tn) tn.focus(); break; }
       startTimer(); go("hub"); break;
     }
     case "hub": go("hub"); break;
@@ -1720,10 +1735,11 @@ document.addEventListener("click", e => {
       break;
     }
     case "copy-results": copyResults(); break;
+    case "submit-form": submitForm(); break;
     case "play-rec": playRecording(); break;
     case "play-q": {
       const stg = roomById(rid).stages[si];
-      if (TTS && stg.audio) TTS.speak(stg.audio, stg.audioVoice ? { language: "en", voice: stg.audioVoice } : { language: "en" }).catch(() => {});
+      if (TTS && stg.audioSrc) TTS.speak(stg.audioSrc).catch(() => {});
       break;
     }
     case "stop-q": stopRecording(); break;
@@ -1875,51 +1891,28 @@ document.addEventListener("keydown", e => {
 resetState();
 render();
 
-/* ---------- Voices: the browser's own speech, so it works from any website or file ---------- */
-(function initSpeech() {
-  if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return;
-  const synth = window.speechSynthesis;
-  let voices = [];
-  const loadVoices = () => { voices = (synth.getVoices() || []).filter(v => /^en/i.test(v.lang)); };
-  loadVoices();
-  if (synth.addEventListener) synth.addEventListener("voiceschanged", loadVoices);
+/* ---------- Audio: plays the recorded clips output1.mp3, output2.mp3 and output3.mp3 inline ---------- */
+function initAudio() {
   const listeners = [];
   const emit = state => listeners.forEach(f => f({ state: state }));
-  const MALE = /(daniel|george|ryan|oliver|thomas|arthur|james|alex|david|mark|guy|brian|male)/i;
-  const FEMALE = /(sonia|libby|maisie|serena|kate|hazel|susan|fiona|moira|samantha|karen|victoria|zira|jenny|aria|emma|female)/i;
-  const pick = role => {
-    const want = role === "female" ? FEMALE : MALE;
-    const avoid = role === "female" ? MALE : FEMALE;
-    const gb = voices.filter(v => /en[-_]GB/i.test(v.lang));
-    const pool = gb.length ? gb.concat(voices.filter(v => gb.indexOf(v) < 0)) : voices;
-    return pool.find(v => want.test(v.name) && !avoid.test(v.name)) || pool.find(v => !avoid.test(v.name)) || pool[0] || null;
-  };
-  let session = 0;
+  let current = null;
+  const stopAll = () => { if (current) { try { current.pause(); current.currentTime = 0; } catch (e) { /* ignore */ } current = null; } };
   TTS = {
-    speak(text, opts) {
+    speak(src) {
       return new Promise(resolve => {
-        synth.cancel();
-        const my = ++session;
-        const role = opts && opts.voice ? "female" : "male";
-        const voice = pick(role);
-        const chunks = String(text).match(/[^.!?]+[.!?]*\s*/g) || [String(text)];
-        let k = 0;
-        const finish = () => { if (my === session) emit("idle"); resolve(); };
-        const next = () => {
-          if (my !== session || k >= chunks.length) { finish(); return; }
-          const u = new SpeechSynthesisUtterance(chunks[k++]);
-          if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = "en-GB"; }
-          u.rate = 0.95;
-          u.pitch = role === "female" ? 1.15 : 0.9;
-          if (k === 1) u.onstart = () => { if (my === session) emit("speaking"); };
-          u.onend = next;
-          u.onerror = () => { finish(); };
-          synth.speak(u);
-        };
-        next();
+        stopAll();
+        if (!src) { emit("idle"); resolve(); return; }
+        const a = new Audio(src);
+        current = a;
+        const finish = () => { if (current === a) { current = null; emit("idle"); } resolve(); };
+        a.onplay = () => { if (current === a) emit("speaking"); };
+        a.onended = finish;
+        a.onerror = finish;
+        const pr = a.play();
+        if (pr && pr.catch) pr.catch(finish);
       });
     },
-    stop() { session++; synth.cancel(); emit("idle"); return Promise.resolve(); },
+    stop() { stopAll(); emit("idle"); return Promise.resolve(); },
     onState(f) { listeners.push(f); return () => {}; }
   };
   TTS.onState(e => {
@@ -1935,7 +1928,8 @@ render();
     const rm = roomById(st.roomId);
     rm.stages.forEach((stg, k) => { if (stg.audio) refreshStage(rm.id, k); });
   }
-})();
+}
+initAudio();
 </script>
 </body>
 </html>
